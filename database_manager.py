@@ -16,13 +16,18 @@ class DatabaseManager:
             return 1
 
     def get_value(self, key):
+        ret_val = None
+        print("Enter get_value")
+        # start critical section
         if key in self.data:
-            return self.data[key]
-        else:
-            return None
+            ret_val = self.data[key]
+        # end critical section
+        print("Exit get_value")
+        return ret_val
 
     def delete_value(self, key):
         if key in self.data:
             val = self.data[key]
             self.data.pop(key)
             return val
+        return None

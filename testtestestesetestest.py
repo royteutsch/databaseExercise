@@ -1,19 +1,38 @@
-import database_manager
+import random
 
-d = database_manager.Database()
-d.set_value("1st", "First")
-d.set_value("2st", "Seirst")
-d.set_value("3st", "Thirst")
-d.set_value("4st", "Fouirst")
+import database_locker
+import threading
+import time
 
-print(d.data)
 
-d.set_value("2st", "Second")
+def read_worker(key, num):
+    for i in range(1000):
+        print(d.get_value(key=key))
+        print(num)
 
-print(d.data)
 
-print("The number after 3 is " + d.get_value("4st"))
+def write_worker(key):
+    for i in range(1000):
+        d.set_value(key=key, val=str(i))
+        print("Wrote " + str(i) +" to key " + key + " at time " + str(time.time()))
 
-print("The number before 2 is " + d.delete_value("1st"))
+def worker(key):
+    time.sleep(random.random())
+
+d = database_locker.DatabaseLocker("dbText.txt")
+threads_1 = []
+for index in range(3):
+    x = threading.Thread(target=write_worker, args=('hello', ))
+    threads_1.append(x)
+
+
+threads_2 = []
+for index in range(10):
+    x = threading.Thread(target=read_worker, args=('hello', index, ))
+    threads_2.append(x)
+for t in threads_1:
+    t.start()
+for t in threads_2:
+    t.start()
 
 print(d.data)
