@@ -6,14 +6,14 @@ import database_writer
 import threading
 from threading import Semaphore
 import multiprocessing
-from multiprocessing import Semaphore as SemaphoreProcess
-from multiprocessing import Lock as LockProcess
+from multiprocessing.synchronize import Semaphore as SemaphoreProcess
+from multiprocessing.synchronize import Lock as LockProcess
 
 
 class MyLock(LockProcess):  # Literally just a lock with the ability to check if its locked
     
     def __init__(self):
-        super(MyLock, self).__init__()
+        super(MyLock, self).__init__(ctx=multiprocessing.get_context())
     
     def locked(self):
         is_locked = super(MyLock, self).acquire(block=False)
@@ -46,7 +46,7 @@ class MySemaphoreProcess(SemaphoreProcess):
     def __init__(self, maxcount):
         self.counter = 0
         self.maxcount = maxcount
-        super(MySemaphoreProcess, self).__init__(maxcount)
+        super(MySemaphoreProcess, self).__init__(maxcount, ctx=multiprocessing.get_context())
 
     def acquire(self):
         super(MySemaphoreProcess, self).acquire()
