@@ -23,20 +23,20 @@ def worker():
 
 
 d = database_locker.DatabaseLocker("dbText.txt", "T")
-if __name__ == '__main__':
-    threads_1 = []
-    for index in range(10):
-        x = parallel.Thread(target=write_worker, args=('hello',))
-        threads_1.append(x)
 
-    threads_2 = []
-    for index in range(100):
-        x = parallel.Thread(target=read_worker, args=('hello',))
-        threads_2.append(x)
-    for t in threads_1:
-        t.start()
-    for t in threads_2:
-        t.start()
+threads_1 = []
+for index in range(10):
+    x = parallel.Thread(target=write_worker, args=('hello',))
+    threads_1.append(x)
 
-    print(d.data)
-    print(d.number)
+threads_2 = []
+for index in range(100):
+    x = parallel.Thread(target=read_worker, args=('hello',))
+    threads_2.append(x)
+for t in threads_1:
+    t.start()
+for t in threads_2:
+    t.start()
+
+print(d.data)
+print(d.number)

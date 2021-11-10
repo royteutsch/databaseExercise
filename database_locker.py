@@ -64,14 +64,14 @@ class DatabaseLocker(database_writer.DatabaseWriter):
     _rLock_sema = MySemaphore(10)
     _rLock_semaProcess = MySemaphoreProcess(10)
 
-    def __init__(self, file_location: str, mode: str):
+    def __init__(self, file_location: str, mode: str, lock1, lock2):
         super().__init__(file_location)
         if mode == "T":  # Thread mode
-            self.wLock = threading.Lock()
-            self.aquireLock = threading.Lock()
+            self.wLock = lock1 #threading.Lock()
+            self.aquireLock = lock2 # threading.Lock()
         else:  # Process mode
-            self.wLock = MyLock()
-            self.aquireLock = multiprocessing.Lock()
+            self.wLock = lock1 # MyLock()
+            self.aquireLock = lock2 #multiprocessing.Lock()
         self.number = 0
         if os.path.getsize(self.file_loc) != 0:  # This means that the file is not empty
             db_file = open(self.file_loc, 'rb')
