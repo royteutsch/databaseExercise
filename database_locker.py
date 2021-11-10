@@ -11,10 +11,10 @@ from multiprocessing.synchronize import Lock as LockProcess
 
 
 class MyLock(LockProcess):  # Literally just a lock with the ability to check if its locked
-    
+
     def __init__(self):
         super(MyLock, self).__init__(ctx=multiprocessing.get_context())
-    
+
     def locked(self):
         is_locked = super(MyLock, self).acquire(block=False)
         if not is_locked:
@@ -111,4 +111,3 @@ class DatabaseLocker(database_writer.DatabaseWriter):
         finally:
             self.number += 10
             self.wLock.release()
-
