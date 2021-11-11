@@ -26,6 +26,16 @@ class DatabaseWriter(database_manager.DatabaseManager):
         # end critical section
         print("Exit set_value")
 
+    def get_value(self, key):
+        print("Enter get_value")
+        # start critical section
+        db_file = open(self.file_loc, 'rb')
+        self.data = pickle.load(db_file)
+        db_file.close()
+        print("Exit get_value")
+        return super().get_value(key)
+        # end critical section
+
     def delete_value(self, key):
         val = super().delete_value(key)
 

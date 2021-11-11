@@ -6,7 +6,7 @@ import database_writer
 import threading
 from threading import Semaphore
 import multiprocessing
-from multiprocessing.synchronize import Semaphore as SemaphoreProcess
+from multiprocessing.synchronize import Semaphore as SemaphoreProcess, SemLock
 from multiprocessing.synchronize import Lock as LockProcess
 
 
@@ -16,11 +16,11 @@ class MyLock(LockProcess):  # Literally just a lock with the ability to check if
         super(MyLock, self).__init__(ctx=multiprocessing.get_context())
 
     def locked(self):
-        is_locked = super(MyLock, self).acquire(block=False)
+        is_locked = SemLock.acquire(block=False)
         if not is_locked:
             return True
         else:
-            super(MyLock, self).release()
+            SemLock.release()
             return False
 
 
@@ -76,13 +76,17 @@ class DatabaseLocker(database_writer.DatabaseWriter):
         if os.path.getsize(self.file_loc) != 0:  # This means that the file is not empty
             db_file = open(self.file_loc, 'rb')
             self.data = pickle.load(db_file)
+            print(self.data)
             db_file.close()
 
     def set_value(self, key, val):  # Writing Privilege
-        with self.aquireLock:
-            self.wLock.acquire()
-            while DatabaseLocker._rLock_sema.counter > 0:
-                time.sleep(0.0001)
+        self.aquireLock.acquire()
+        print("Acquiring set")
+        self.wLock.acquire()
+        while DatabaseLocker._rLock_sema.counter > 0:
+            time.sleep(0.0001)
+        self.aquireLock.release()
+        print("Releasing acquire lock for set")
         try:
             super().set_value(key, val)
         finally:
@@ -90,10 +94,14 @@ class DatabaseLocker(database_writer.DatabaseWriter):
             self.wLock.release()
 
     def get_value(self, key):  # Reading Privilege
-        with self.aquireLock:
-            DatabaseLocker._rLock_sema.acquire()
-            while self.wLock.locked():
-                time.sleep(0.0001)
+        self.aquireLock.acquire()
+        print("Acquiring get")
+        DatabaseLocker._rLock_sema.acquire()
+        while self.wLock.locked():
+            print("Waiting")
+            time.sleep(0.0001)
+        self.aquireLock.release()
+        print("Releasing acquire lock for get")
         try:
             return super().get_value(key)
         finally:
@@ -101,10 +109,11 @@ class DatabaseLocker(database_writer.DatabaseWriter):
             DatabaseLocker._rLock_sema.release()
 
     def delete_value(self, key):  # Writing Privilege
-        with self.aquireLock:
-            self.wLock.acquire()
-            while DatabaseLocker._rLock_sema.counter > 0:
-                time.sleep(0.0001)
+        self.aquireLock.acquire()
+        self.wLock.acquire()
+        while DatabaseLocker._rLock_sema.counter > 0:
+            time.sleep(0.0001)
+        self.aquireLock.release()
         try:
             val = super().delete_value(key)
             return val
