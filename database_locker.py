@@ -3,11 +3,11 @@ import time
 import pickle
 from typing import Optional
 import database_writer
-import threading
 from threading import Semaphore
 import multiprocessing
-from multiprocessing.synchronize import Semaphore as SemaphoreProcess, SemLock
+from multiprocessing.synchronize import Semaphore as SemaphoreProcess
 from multiprocessing.synchronize import Lock as LockProcess
+import multiprocessing.queues
 
 
 class MyLock(LockProcess):  # Literally just a lock with the ability to check if its locked
@@ -16,11 +16,11 @@ class MyLock(LockProcess):  # Literally just a lock with the ability to check if
         super(MyLock, self).__init__(ctx=multiprocessing.get_context())
 
     def locked(self):
-        is_locked = SemLock.acquire(block=False)
+        is_locked = super().acquire(block=False)
         if not is_locked:
             return True
         else:
-            SemLock.release()
+            super().release()
             return False
 
 
@@ -48,7 +48,7 @@ class MySemaphoreProcess(SemaphoreProcess):
         self.maxcount = maxcount
         super(MySemaphoreProcess, self).__init__(maxcount, ctx=multiprocessing.get_context())
 
-    def acquire(self):
+    def acquire(self, block: bool = ..., timeout: Optional[float] = ...) -> bool:
         super(MySemaphoreProcess, self).acquire()
         self.counter += 1
 
@@ -63,16 +63,19 @@ class MySemaphoreProcess(SemaphoreProcess):
 class DatabaseLocker(database_writer.DatabaseWriter):
     _rLock_sema = MySemaphore(10)
     _rLock_semaProcess = MySemaphoreProcess(10)
+    number = 0
+    counter = 0
 
     def __init__(self, file_location: str, mode: str, lock1, lock2):
         super().__init__(file_location)
+        self.mode = mode
+        self.queueue = multiprocessing.queues.Queue
         if mode == "T":  # Thread mode
-            self.wLock = lock1 #threading.Lock()
-            self.aquireLock = lock2 # threading.Lock()
+            self.wLock = lock1  # threading.Lock()
+            self.aquireLock = lock2  # threading.Lock()
         else:  # Process mode
-            self.wLock = lock1 # MyLock()
-            self.aquireLock = lock2 #multiprocessing.Lock()
-        self.number = 0
+            self.wLock = lock1  # MyLock()
+            self.aquireLock = lock2  # multiprocessing.Lock()
         if os.path.getsize(self.file_loc) != 0:  # This means that the file is not empty
             db_file = open(self.file_loc, 'rb')
             self.data = pickle.load(db_file)
@@ -80,43 +83,89 @@ class DatabaseLocker(database_writer.DatabaseWriter):
             db_file.close()
 
     def set_value(self, key, val):  # Writing Privilege
-        self.aquireLock.acquire()
-        print("Acquiring set")
-        self.wLock.acquire()
-        while DatabaseLocker._rLock_sema.counter > 0:
-            time.sleep(0.0001)
-        self.aquireLock.release()
-        print("Releasing acquire lock for set")
+        if self.mode == "T":
+            self.aquireLock.acquire()
+            print("Acquiring set")
+            self.wLock.acquire()
+            while DatabaseLocker._rLock_sema.counter > 0:
+                    print("Set Value is Waiting")
+                    time.sleep(0.0001)
+            self.aquireLock.release()
+            print("Releasing acquire lock for set")
+        else:
+            while DatabaseLocker.counter >= 0:
+                if DatabaseLocker.counter == 0:
+                    self.aquireLock.acquire()
+                    self.wLock.acquire()
+                    if DatabaseLocker.counter == 0:
+                        DatabaseLocker.counter = -1
+                    self.aquireLock.release()
+                time.sleep(0.0001)
         try:
             super().set_value(key, val)
         finally:
-            self.number += 10
+            self.aquireLock.acquire()
             self.wLock.release()
+            DatabaseLocker.counter = 0
+            self.aquireLock.release()
+            DatabaseLocker.number += 10
 
     def get_value(self, key):  # Reading Privilege
-        self.aquireLock.acquire()
-        print("Acquiring get")
-        DatabaseLocker._rLock_sema.acquire()
-        while self.wLock.locked():
-            print("Waiting")
-            time.sleep(0.0001)
-        self.aquireLock.release()
-        print("Releasing acquire lock for get")
+        if self.mode == "T":
+            self.aquireLock.acquire()
+            print("Acquiring get")
+            DatabaseLocker._rLock_sema.acquire()
+            while self.wLock.locked():
+                print("Get Value is Waiting")
+                time.sleep(0.0001)
+            self.aquireLock.release()
+            print("Releasing acquire lock for get")
+        else:
+            success = False
+            while not success:
+                if 10 > DatabaseLocker.counter >= 0:
+                    self.aquireLock.acquire()
+                    if 10 > DatabaseLocker.counter >= 0:
+                        DatabaseLocker.counter += 1
+                        success = True
+                    self.aquireLock.release()
         try:
             return super().get_value(key)
         finally:
-            self.number -= 10
-            DatabaseLocker._rLock_sema.release()
+            DatabaseLocker.number -= 10
+            if self.mode == "T":
+                DatabaseLocker._rLock_sema.release()
+            else:
+                self.aquireLock.acquire()
+                DatabaseLocker.counter -= 1
+                self.aquireLock.release()
 
     def delete_value(self, key):  # Writing Privilege
-        self.aquireLock.acquire()
-        self.wLock.acquire()
-        while DatabaseLocker._rLock_sema.counter > 0:
-            time.sleep(0.0001)
-        self.aquireLock.release()
+        if self.mode == "T":
+            self.aquireLock.acquire()
+            print("Acquiring del")
+            self.wLock.acquire()
+            while DatabaseLocker._rLock_sema.counter > 0:
+                print("Del Value is Waiting")
+                time.sleep(0.0001)
+            self.aquireLock.release()
+            print("Releasing acquire lock for del")
+        else:
+            while DatabaseLocker.counter >= 0:
+                if DatabaseLocker.counter == 0:
+                    self.aquireLock.acquire()
+                    self.wLock.acquire()
+                    if DatabaseLocker.counter == 0:
+                        DatabaseLocker.counter = -1
+                    self.aquireLock.release()
+                time.sleep(0.0001)
         try:
             val = super().delete_value(key)
             return val
         finally:
-            self.number += 10
+            self.aquireLock.acquire()
             self.wLock.release()
+            DatabaseLocker.counter = 0
+            self.aquireLock.release()
+            DatabaseLocker.number += 10
+

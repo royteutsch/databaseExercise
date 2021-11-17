@@ -33,7 +33,7 @@ class TestDatabase:
 
 def read_worker(key, d):
     val = None
-    for i in range(100):
+    for i in range(10):
         val = d.get_val(key=key)
         print(key + " corresponds to " + str(val))
         print("Number: " + str(d.database.number))
@@ -43,7 +43,7 @@ def read_worker(key, d):
 
 
 def write_worker(key, d):
-    for i in range(1000):
+    for i in range(100):
         d.set_val(key=key, value=str(i))
         print("Wrote " + str(i) + " to key " + key + " at time " + str(time.time()))
         print("Number: " + str(d.database.number))
@@ -57,14 +57,14 @@ def worker():
 if __name__ == '__main__':
     plock = multiprocessing.Lock()
     pmlock = MyLock()
-    da = TestDatabase(file_location="dbText.txt", mode="T", lock1=pmlock, lock2=plock)
+    da = TestDatabase(file_location="dbText.txt", mode="P", lock1=pmlock, lock2=plock)
     threads_1 = []
-    for index in range(1):
+    for index in range(10):
         x = Process(target=write_worker, args=("hello", da,))
         threads_1.append(x)
 
     threads_2 = []
-    for index in range(10):
+    for index in range(100):
         x = Process(target=read_worker, args=("hello", da,))
         threads_2.append(x)
 

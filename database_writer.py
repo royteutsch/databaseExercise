@@ -27,9 +27,11 @@ class DatabaseWriter(database_manager.DatabaseManager):
         print("Exit set_value")
 
     def get_value(self, key):
+        print(self.file_loc)
         print("Enter get_value")
         # start critical section
         db_file = open(self.file_loc, 'rb')
+        print("Database: " + db_file.read().decode(encoding="latin1"))
         self.data = pickle.load(db_file)
         db_file.close()
         print("Exit get_value")
