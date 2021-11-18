@@ -1,3 +1,4 @@
+import ctypes
 import os
 import time
 import pickle
@@ -7,7 +8,6 @@ from threading import Semaphore
 import multiprocessing
 from multiprocessing.synchronize import Semaphore as SemaphoreProcess
 from multiprocessing.synchronize import Lock as LockProcess
-import multiprocessing.queues
 
 
 class MyLock(LockProcess):  # Literally just a lock with the ability to check if its locked
@@ -64,12 +64,12 @@ class DatabaseLocker(database_writer.DatabaseWriter):
     _rLock_sema = MySemaphore(10)
     _rLock_semaProcess = MySemaphoreProcess(10)
     number = 0
-    counter = 0
 
-    def __init__(self, file_location: str, mode: str, lock1, lock2):
+    def __init__(self, file_location: str, mode: str, lock1, lock2, count, locky):
         super().__init__(file_location)
         self.mode = mode
-        self.queueue = multiprocessing.queues.Queue
+        self.count = count
+        self.lock = locky
         if mode == "T":  # Thread mode
             self.wLock = lock1  # threading.Lock()
             self.aquireLock = lock2  # threading.Lock()
@@ -93,20 +93,36 @@ class DatabaseLocker(database_writer.DatabaseWriter):
             self.aquireLock.release()
             print("Releasing acquire lock for set")
         else:
-            while DatabaseLocker.counter >= 0:
-                if DatabaseLocker.counter == 0:
+            cant_write = True
+            while cant_write:
+                if self.count.value == 0:
+                    print(f"DatabaseLocker.set_value:{os.getpid()} Acquiring set")
                     self.aquireLock.acquire()
                     self.wLock.acquire()
-                    if DatabaseLocker.counter == 0:
-                        DatabaseLocker.counter = -1
+                    if self.count.value == 0:
+                        with self.lock:
+                            self.count.value = -1
+                            print(f"DatabaseLocker.set_value:{os.getpid()} count SET TO {self.count.value}")
                     self.aquireLock.release()
+                    print(f"DatabaseLocker.set_value:{os.getpid()} Releasing acquire lock for set")
+                else:
+                    print(f"DatabaseLocker.set_value:{os.getpid()} Set Value  is Waiting")
+                    time.sleep(0.0001)
+                    continue
+
+                if self.count.value == -1:
+                    cant_write = False
                 time.sleep(0.0001)
         try:
             super().set_value(key, val)
         finally:
             self.aquireLock.acquire()
-            self.wLock.release()
-            DatabaseLocker.counter = 0
+            with self.lock:
+                print("Counter restarted")
+                self.count.value = 0
+            if self.wLock.locked():
+                self.wLock.release()
+                time.sleep(0.0001)
             self.aquireLock.release()
             DatabaseLocker.number += 10
 
@@ -121,14 +137,22 @@ class DatabaseLocker(database_writer.DatabaseWriter):
             self.aquireLock.release()
             print("Releasing acquire lock for get")
         else:
+            print("Mode: "+self.mode)
             success = False
             while not success:
-                if 10 > DatabaseLocker.counter >= 0:
+                if 10 > self.count.value >= 0:
+                    print("DatabaseLocker.get_value: Acquiring get")
                     self.aquireLock.acquire()
-                    if 10 > DatabaseLocker.counter >= 0:
-                        DatabaseLocker.counter += 1
+                    print("DatabaseLocker.get_value: Acquire lock initiated for read")
+                    if 10 > self.count.value >= 0:
+                        with self.lock:
+                            self.count.value += 1
                         success = True
+                        print("Success")
                     self.aquireLock.release()
+                    print("DatabaseLocker.get_value: Releasing acquire lock for get")
+                # else:
+                    # print("DatabaseLocker.get_value: ...Waiting")
         try:
             return super().get_value(key)
         finally:
@@ -137,7 +161,10 @@ class DatabaseLocker(database_writer.DatabaseWriter):
                 DatabaseLocker._rLock_sema.release()
             else:
                 self.aquireLock.acquire()
-                DatabaseLocker.counter -= 1
+                with self.lock:
+                    self.count.value -= 1
+                    print(f"DatabaseLocker.get_value: count REDUCED TO {self.count.value}")
+
                 self.aquireLock.release()
 
     def delete_value(self, key):  # Writing Privilege
@@ -151,13 +178,19 @@ class DatabaseLocker(database_writer.DatabaseWriter):
             self.aquireLock.release()
             print("Releasing acquire lock for del")
         else:
-            while DatabaseLocker.counter >= 0:
-                if DatabaseLocker.counter == 0:
+            while self.count >= 0:
+                if self.count == 0:
+                    print("DatabaseLocker.delete_value: Acquiring del")
                     self.aquireLock.acquire()
                     self.wLock.acquire()
-                    if DatabaseLocker.counter == 0:
-                        DatabaseLocker.counter = -1
+                    if self.count == 0:
+                        with self.lock:
+                            self.count.value = -1
+                            print(f"DatabaseLocker.delete_value: count SET TO {self.count.value}")
                     self.aquireLock.release()
+                    print("DatabaseLocker.delete_value: Releasing acquire lock for del")
+                else:
+                    print("DatabaseLocker.delete_value: Del Value is Waiting")
                 time.sleep(0.0001)
         try:
             val = super().delete_value(key)
@@ -165,7 +198,8 @@ class DatabaseLocker(database_writer.DatabaseWriter):
         finally:
             self.aquireLock.acquire()
             self.wLock.release()
-            DatabaseLocker.counter = 0
+            with self.lock:
+                self.count.value = 0
             self.aquireLock.release()
             DatabaseLocker.number += 10
 

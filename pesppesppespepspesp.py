@@ -21,8 +21,9 @@ class MyLock(LockProcess):  # Literally just a lock with the ability to check if
 
 
 class TestDatabase:
-    def __init__(self, file_location: str, mode: str, lock1: MyLock, lock2: multiprocessing.Lock()):
-        self.database = database_locker.DatabaseLocker(file_location=file_location, mode=mode, lock1=lock1, lock2=lock2)
+    def __init__(self, file_location: str, mode: str, lock1: MyLock, lock2: multiprocessing.Lock(), count, locky):
+        self.database = database_locker.DatabaseLocker(file_location=file_location, mode=mode, lock1=lock1, lock2=lock2,
+                                                       count=count, locky=locky)
 
     def set_val(self, key, value):
         self.database.set_value(key, value)
@@ -57,19 +58,21 @@ def worker():
 if __name__ == '__main__':
     plock = multiprocessing.Lock()
     pmlock = MyLock()
-    da = TestDatabase(file_location="dbText.txt", mode="P", lock1=pmlock, lock2=plock)
+    v = multiprocessing.Value('i', 0)
+    lock = multiprocessing.Lock()
+    da = TestDatabase(file_location="dbText.txt", mode="P", lock1=pmlock, lock2=plock, count=v, locky=lock)
     threads_1 = []
     for index in range(10):
         x = Process(target=write_worker, args=("hello", da,))
         threads_1.append(x)
 
-    threads_2 = []
-    for index in range(100):
-        x = Process(target=read_worker, args=("hello", da,))
-        threads_2.append(x)
+    # threads_2 = []
+    # for index in range(100):
+    #     x = Process(target=read_worker, args=("hello", da,))
+    #     threads_2.append(x)
 
     print("starting...")
     for t in threads_1:
         t.start()
-    for t in threads_2:
-        t.start()
+    # for t in threads_2:
+    #     t.start()
