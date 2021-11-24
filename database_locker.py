@@ -63,7 +63,7 @@ class MySemaphoreProcess(SemaphoreProcess):
 class DatabaseLocker(database_writer.DatabaseWriter):
     _rLock_sema = MySemaphore(10)
     _rLock_semaProcess = MySemaphoreProcess(10)
-    number = 0
+    number = multiprocessing.Value('i', 0)
 
     def __init__(self, file_location: str, mode: str, lock1, lock2, count, locky):
         super().__init__(file_location)
@@ -98,7 +98,9 @@ class DatabaseLocker(database_writer.DatabaseWriter):
                 if self.count.value == 0:
                     print(f"DatabaseLocker.set_value:{os.getpid()} Acquiring set")
                     self.aquireLock.acquire()
+                    print(f"DatabaseLocker.set_value:{os.getpid()} Acquire lock acquired for set")
                     self.wLock.acquire()
+                    print(f"DatabaseLocker.set_value:{os.getpid()} Writing lock acquired for set")
                     if self.count.value == 0:
                         with self.lock:
                             self.count.value = -1
@@ -116,15 +118,14 @@ class DatabaseLocker(database_writer.DatabaseWriter):
         try:
             super().set_value(key, val)
         finally:
-            self.aquireLock.acquire()
+            print(f"DatabaseLocker.set_value:{os.getpid()} finishing write")
             with self.lock:
-                print("Counter restarted")
+                print(f"DatabaseLocker.set_value:{os.getpid()} Counter restarted")
                 self.count.value = 0
             if self.wLock.locked():
                 self.wLock.release()
                 time.sleep(0.0001)
-            self.aquireLock.release()
-            DatabaseLocker.number += 10
+            DatabaseLocker.number.value += 10
 
     def get_value(self, key):  # Reading Privilege
         if self.mode == "T":
@@ -137,33 +138,32 @@ class DatabaseLocker(database_writer.DatabaseWriter):
             self.aquireLock.release()
             print("Releasing acquire lock for get")
         else:
-            print("Mode: "+self.mode)
             success = False
             while not success:
                 if 10 > self.count.value >= 0:
-                    print("DatabaseLocker.get_value: Acquiring get")
+                    print(f"DatabaseLocker.get_value:{os.getpid()} Acquiring get")
                     self.aquireLock.acquire()
-                    print("DatabaseLocker.get_value: Acquire lock initiated for read")
+                    print(f"DatabaseLocker.get_value:{os.getpid()} Acquire lock initiated for read")
                     if 10 > self.count.value >= 0:
                         with self.lock:
                             self.count.value += 1
                         success = True
-                        print("Success")
+                        print(f"DatabaseLocker.get_value:{os.getpid()} count SET TO {self.count.value}")
                     self.aquireLock.release()
-                    print("DatabaseLocker.get_value: Releasing acquire lock for get")
-                # else:
-                    # print("DatabaseLocker.get_value: ...Waiting")
+                    print(f"DatabaseLocker.get_value:{os.getpid()} Releasing acquire lock for get")
+                else:
+                    print(f"DatabaseLocker.get_value:{os.getpid()} Waiting")
         try:
             return super().get_value(key)
         finally:
-            DatabaseLocker.number -= 10
+            DatabaseLocker.number.value -= 10
             if self.mode == "T":
                 DatabaseLocker._rLock_sema.release()
             else:
                 self.aquireLock.acquire()
                 with self.lock:
                     self.count.value -= 1
-                    print(f"DatabaseLocker.get_value: count REDUCED TO {self.count.value}")
+                    print(f"DatabaseLocker.get_value:{os.getpid()} count REDUCED TO {self.count.value}")
 
                 self.aquireLock.release()
 

@@ -1,13 +1,15 @@
 """
 Uses serialisation with the dictionary
 """
+import multiprocessing
 import os
 import pickle
 import database_manager
 
 
 class DatabaseWriter(database_manager.DatabaseManager):
-    write_num = 0
+    write_num = multiprocessing.Value('i', 0)
+
     def __init__(self, file_location: str):
         super().__init__()
 
@@ -18,8 +20,8 @@ class DatabaseWriter(database_manager.DatabaseManager):
 
     def set_value(self, key, val):
         super().set_value(key, val)
-        DatabaseWriter.write_num += 1
-        print(f"DatabaseWriter.set_value: set count {DatabaseWriter.write_num}")
+        DatabaseWriter.write_num.value += 1
+        print(f"DatabaseWriter.set_value: set count {DatabaseWriter.write_num.value}")
 
         print(f"DatabaseWriter.set_value:{os.getpid()} enter")
         # start critical section
