@@ -1,28 +1,33 @@
 import random
-
+import threading
+import multiprocessing
 import database_locker
 import threading as parallel
 import time
 
 
 def read_worker(key):
-    for i in range(1000):
+    for i in range(100):
         val = d.get_value(key=key)
         print(key + " corresponds to " + val)
 
 
 def write_worker(key):
-    for i in range(10000):
+    for i in range(1000):
         d.set_value(key=key, val=str(i))
         print("Wrote " + str(i) + " to key " + key + " at time " + str(time.time()))
-        print("Number: " + str(d.number))
+        print("Number: " + str(d.number.value))
 
 
 def worker():
     time.sleep(random.random())
 
 
-d = database_locker.DatabaseLocker("dbText.txt", "T")
+plock = threading.Lock()
+pmlock = threading.Lock()
+v = multiprocessing.Value('i', 0)
+lock = threading.Lock()
+d = database_locker.DatabaseLocker("dbText.txt", "T", plock, pmlock, v, lock)
 
 threads_1 = []
 for index in range(10):

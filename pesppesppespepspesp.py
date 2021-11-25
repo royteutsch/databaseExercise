@@ -44,6 +44,7 @@ def read_worker(key, d):
 
 
 def write_worker(key, d):
+    d.database.rLock_semaProcess.MyCounter = multiprocessing.Value('i')
     for i in range(100):
         d.set_val(key=key, value=str(i))
         print("Wrote " + str(i) + " to key " + key + " at time " + str(time.time()))
@@ -76,3 +77,5 @@ if __name__ == '__main__':
         t.start()
     for t in threads_2:
         t.start()
+
+    time.sleep(1000)

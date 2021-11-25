@@ -21,24 +21,28 @@ class DatabaseWriter(database_manager.DatabaseManager):
     def set_value(self, key, val):
         super().set_value(key, val)
         DatabaseWriter.write_num.value += 1
-        print(f"DatabaseWriter.set_value: set count {DatabaseWriter.write_num.value}")
-
+        print(f"DatabaseWriter.set_value: write count {DatabaseWriter.write_num.value}")
         print(f"DatabaseWriter.set_value:{os.getpid()} enter")
         # start critical section
         db_file = open(self.file_loc, 'wb')  # Changes the file
-        pickle.dump(self.data, db_file)
+        if self.data is not []:
+            pickle.dump(self.data, db_file)
         db_file.close()
         # end critical section
         print(f"DatabaseWriter.set_value:{os.getpid()} exit")
 
     def get_value(self, key):
-        print(self.file_loc)
         print("DatabaseWriter.get_value: enter")
         # start critical section
-        db_file = open(self.file_loc, 'rb')
-        print("DatabaseWriter.get_value: Database: " + db_file.read().decode(encoding="latin1"))
-        self.data = pickle.load(db_file)
-        db_file.close()
+        if os.stat(self.file_loc).st_size != 0:
+            db_file = open(self.file_loc, 'rb')
+            # print(f"DatabaseWriter.get_value:{os.getpid()} Database: {db_file.read().decode(encoding="ASCII")}")
+            self.data = pickle.load(db_file)
+            print(f"DatabaseWriter.get_value:{os.getpid()} Data: {self.data}")
+            db_file.close()
+        else:
+            print("DatabaseWriter.get_value: Database: Empty")
+            self.data = []
         print("DatabaseWriter.get_value: exit")
 
         return super().get_value(key)
